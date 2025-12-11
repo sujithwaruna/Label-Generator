@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University Attendance Tracker</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.292.0",
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"
+        }
+    }
+    </script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Save, Calendar, CheckCircle, XCircle, AlertCircle, Settings, PieChart, 
+            BookOpen, RefreshCw, Undo, Redo, Sliders, AlertTriangle, ShieldCheck, 
+            ShieldAlert, LogIn, LogOut, User, Cloud, CloudOff 
+        } from 'lucide-react';
+        import { initializeApp } from "firebase/app";
+        import { 
+            getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, 
+            signInAnonymously, signInWithCustomToken 
+        } from "firebase/auth";
+        import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+
+        // ==========================================
+        // CONFIGURATION SECTION - EDIT THIS
+        // ==========================================
+       const firebaseConfig = {
+  apiKey: "AIzaSyBfT-g4A1Wwv95bQt-JXzlMstEqmzdB26A",
+  authDomain: "attendanceapp-4bee7.firebaseapp.com",
+  projectId: "attendanceapp-4bee7",
+  storageBucket: "attendanceapp-4bee7.firebasestorage.app",
+  messagingSenderId: "49447609596",
+  appId: "1:49447609596:web:9d6fa1de8b6d69731f2379",
+  measurementId: "G-C34561L14P"
+};
+        // ==========================================
+
+        // Initialize Firebase safely
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (error) {
+            console.error("Firebase Initialization Error. Did you paste your config keys?", error);
+        }
+
+        const appId = 'default-app-id'; // Replaced __app_id
+
+        const AttendanceTracker = () => {
+          // --- Configuration & Constants ---
+          
+          // Comprehensive List of Sri Lankan Public Holidays (2025-2026)
+          const SRI_LANKAN_HOLIDAYS = [
+            // 2025
+            { date: '2025-01-13', name: 'Duruthu Full Moon Poya' },
+            { date: '2025-01-14', name: 'Tamil Thai Pongal' },
+            { date: '2025-02-04', name: 'Independence Day' },
+            { date: '2025-02-12', name: 'Navam Full Moon Poya' },
+            { date: '2025-02-26', name: 'Mahasivarathri Day' },
+            { date: '2025-03-13', name: 'Madin Full Moon Poya' },
+            { date: '2025-03-31', name: 'Id-Ul-Fitr (Ramazan)' },
+            { date: '2025-04-12', name: 'Bak Full Moon Poya' },
+            { date: '2025-04-13', name: 'Sinhala & Tamil New Year Eve' },
+            { date: '2025-04-14', name: 'Sinhala & Tamil New Year' },
+            { date: '2025-04-18', name: 'Good Friday' },
+            { date: '2025-05-01', name: 'May Day' },
+            { date: '2025-05-12', name: 'Vesak Full Moon Poya' },
+            { date: '2025-05-13', name: 'Day following Vesak Poya' },
+            { date: '2025-06-07', name: 'Id-Ul-Alha (Hajji)' },
+            { date: '2025-06-10', name: 'Poson Full Moon Poya' },
+            { date: '2025-07-10', name: 'Esala Full Moon Poya' },
+            { date: '2025-08-08', name: 'Nikini Full Moon Poya' },
+            { date: '2025-09-05', name: 'Milad-Un-Nabi' },
+            { date: '2025-09-07', name: 'Binara Full Moon Poya' },
+            { date: '2025-10-06', name: 'Vap Full Moon Poya' },
+            { date: '2025-10-20', name: 'Deepavali Festival' },
+            { date: '2025-11-05', name: 'Ill Full Moon Poya' },
+            { date: '2025-12-04', name: 'Unduvap Full Moon Poya' },
+            { date: '2025-12-25', name: 'Christmas Day' },
+
+            // 2026
+            { date: '2026-01-03', name: 'Duruthu Full Moon Poya' },
+            { date: '2026-01-15', name: 'Tamil Thai Pongal' },
+            { date: '2026-02-01', name: 'Navam Full Moon Poya' },
+            { date: '2026-02-04', name: 'Independence Day' },
+            { date: '2026-02-15', name: 'Mahasivarathri Day' },
+            { date: '2026-03-02', name: 'Madin Full Moon Poya' },
+            { date: '2026-03-21', name: 'Id-Ul-Fitr (Ramazan)' },
+            { date: '2026-04-01', name: 'Bak Full Moon Poya' },
+            { date: '2026-04-03', name: 'Good Friday' },
+            { date: '2026-04-13', name: 'Sinhala & Tamil New Year Eve' },
+            { date: '2026-04-14', name: 'Sinhala & Tamil New Year' },
+            { date: '2026-05-01', name: 'May Day / Vesak Poya' },
+            { date: '2026-05-02', name: 'Day following Vesak Poya' },
+            { date: '2026-05-28', name: 'Id-Ul-Alha (Hajji)' },
+            { date: '2026-05-30', name: 'Adhi Poson Full Moon Poya' },
+            { date: '2026-06-29', name: 'Poson Full Moon Poya' },
+            { date: '2026-07-29', name: 'Esala Full Moon Poya' },
+            { date: '2026-08-26', name: 'Milad-Un-Nabi' },
+            { date: '2026-08-27', name: 'Nikini Full Moon Poya' },
+            { date: '2026-09-26', name: 'Binara Full Moon Poya' },
+            { date: '2026-10-25', name: 'Vap Full Moon Poya' },
+            { date: '2026-11-08', name: 'Deepavali Festival' },
+            { date: '2026-11-24', name: 'Ill Full Moon Poya' },
+            { date: '2026-12-23', name: 'Unduvap Full Moon Poya' },
+            { date: '2026-12-25', name: 'Christmas Day' },
+          ];
+
+          // --- State ---
+          const [user, setUser] = useState(null);
+          const [activeTab, setActiveTab] = useState('tracker'); // 'tracker' | 'settings' | 'stats'
+          
+          // Semester Configuration State
+          const [semesterConfig, setSemesterConfig] = useState({
+            startDate: '2025-12-08',
+            endDate: '2026-03-27',
+            weeksCount: 15
+          });
+
+          // Modules
+          const [modules, setModules] = useState([
+            { id: 1, name: 'MC3010: Diff. Equations & Numerical Methods', color: 'bg-blue-500' },
+            { id: 2, name: 'MC3020: Probability & Statistics', color: 'bg-green-500' },
+            { id: 3, name: 'MP3010: Kinematics & Dynamics', color: 'bg-purple-500' },
+            { id: 4, name: 'CE3010: Mechanics of Materials', color: 'bg-orange-500' },
+            { id: 5, name: 'EC3011: Intro to Electronics', color: 'bg-pink-500' },
+            { id: 6, name: 'ID3020: Design & Prototyping (Lab)', color: 'bg-teal-500' },
+          ]);
+
+          // Schedule
+          const [schedule, setSchedule] = useState({
+            'Monday': [1, 6, 3, 2],    // MC3010, ID3020, MP3010, MC3020
+            'Tuesday': [2, 1, 6],      // MC3020, MC3010, ID3020
+            'Wednesday': [1, 4, 5, 6], // MC3010, CE3010, EC3011, ID3020
+            'Thursday': [3, 4, 6],     // MP3010, CE3010, ID3020
+            'Friday': [6, 5]           // ID3020, EC3011 (Skipping General Tutor)
+          });
+
+          // Attendance Data
+          const [attendance, setAttendance] = useState({});
+
+          // History State
+          const [history, setHistory] = useState([]);
+          const [future, setFuture] = useState([]);
+
+          // Flag to prevent double saving during cloud fetch
+          const isFetchingCloud = useRef(false);
+
+          // --- Firebase Auth & Data Sync ---
+          
+          // 1. Initial Auth Check (Robust Implementation)
+          useEffect(() => {
+            if(!auth) return; // Guard if config is missing
+
+            const initAuth = async () => {
+              try {
+                  // Ensure anonymous sign-in if no custom token is available
+                  // Note: Custom token logic removed for HTML standalone version as it requires server-side generation
+                  await signInAnonymously(auth);
+              } catch (e) {
+                console.error("Auth init failed", e);
+              }
+            };
+            initAuth();
+            
+            // Listener is separate to handle updates and user switches
+            const unsubscribe = onAuthStateChanged(auth, (u) => {
+                setUser(u);
+            });
+            return () => unsubscribe();
+          }, []);
+
+          // 2. Load Data (LocalStorage on Mount, Firestore on Login)
+          useEffect(() => {
+            // A. Always try to load LocalStorage first for speed
+            const savedData = localStorage.getItem('uniAttendanceData_v3') || localStorage.getItem('uniAttendanceData_v2');
+            if (savedData && !isFetchingCloud.current) {
+               try {
+                const parsed = JSON.parse(savedData);
+                // Only load if we haven't already loaded cloud data
+                // We allow overwrite if user is null or anonymous and hasn't fetched cloud yet
+                if (!user || user.isAnonymous) {
+                    if (parsed.modules) setModules(parsed.modules);
+                    if (parsed.schedule) setSchedule(parsed.schedule);
+                    if (parsed.attendance) setAttendance(parsed.attendance);
+                    if (parsed.semesterConfig) setSemesterConfig(parsed.semesterConfig);
+                }
+               } catch(e) { console.error("Local load error", e); }
+            }
+
+            // B. If User Logs In (Non-Anonymous), Switch to Firestore
+            if (user && db) { // Fetch for both Anonymous and Google users to sync across sessions if possible
+                isFetchingCloud.current = true;
+                const unsubFirestore = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'attendance'), (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.modules) setModules(data.modules);
+                        if (data.schedule) setSchedule(data.schedule);
+                        if (data.attendance) setAttendance(data.attendance);
+                        if (data.semesterConfig) setSemesterConfig(data.semesterConfig);
+                    }
+                    // After initial load, allow local saves again
+                    setTimeout(() => { isFetchingCloud.current = false; }, 500);
+                }, (error) => {
+                    // Suppress permission errors for anonymous users if they haven't saved anything yet
+                    if (error.code !== 'permission-denied') {
+                        console.error("Firestore Error:", error);
+                    }
+                    isFetchingCloud.current = false;
+                });
+                return () => unsubFirestore();
+            }
+          }, [user]);
+
+          // 3. Save Data (To LocalStorage & Firestore)
+          useEffect(() => {
+            // Save to LocalStorage
+            const dataToSave = { modules, schedule, attendance, semesterConfig };
+            localStorage.setItem('uniAttendanceData_v3', JSON.stringify(dataToSave));
+
+            // Save to Firestore (if logged in and not currently fetching from it)
+            if (user && db && !isFetchingCloud.current) {
+                // Use a timeout to debounce saves slightly
+                const timeoutId = setTimeout(() => {
+                    setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'data', 'attendance'), dataToSave)
+                        .catch(err => console.error("Save failed (likely permission/offline)", err));
+                }, 1000);
+                return () => clearTimeout(timeoutId);
+            }
+          }, [modules, schedule, attendance, semesterConfig, user]);
+
+
+          // --- Auth Handlers ---
+          const handleGoogleLogin = async () => {
+            if(!auth) { alert("Firebase not configured."); return; }
+            try {
+              const provider = new GoogleAuthProvider();
+              await signInWithPopup(auth, provider);
+            } catch (error) {
+              if (error.code === 'auth/unauthorized-domain') {
+                // Graceful fallback for preview environments
+                alert("Note: Google Sign-In is restricted in this preview environment. You are logged in as a Guest (Cloud Sync active).");
+                if (!auth.currentUser) {
+                    await signInAnonymously(auth); 
+                }
+              } else if (error.code !== 'auth/cancelled-popup-request') {
+                console.error("Login Error:", error);
+                alert("Sign in failed. Continuing as Guest.");
+              }
+            }
+          };
+
+          const handleLogout = async () => {
+            if(!auth) return;
+            try {
+              await signOut(auth);
+              // Re-auth anonymously immediately to keep app working
+              await signInAnonymously(auth);
+            } catch (error) {
+              console.error("Logout failed:", error);
+            }
+          };
+
+          // --- Derived State: Active Holidays ---
+          const activeHolidays = useMemo(() => {
+            const start = new Date(semesterConfig.startDate);
+            const end = new Date(semesterConfig.endDate);
+            start.setHours(0,0,0,0);
+            end.setHours(23,59,59,999);
+
+            return SRI_LANKAN_HOLIDAYS.filter(h => {
+                const hDate = new Date(h.date);
+                return hDate >= start && hDate <= end;
+            });
+          }, [semesterConfig.startDate, semesterConfig.endDate]);
+
+          // --- Helper Functions ---
+          const formatDate = (date) => {
+            return date.toISOString().split('T')[0];
+          };
+
+          const getDayName = (date) => {
+            return date.toLocaleDateString('en-US', { weekday: 'long' });
+          };
+
+          const isHoliday = (dateString) => {
+            return SRI_LANKAN_HOLIDAYS.some(h => h.date === dateString);
+          };
+
+          // Generate the academic calendar
+          const academicCalendar = useMemo(() => {
+            if (!semesterConfig.startDate || !semesterConfig.endDate) return [];
+
+            let calendar = [];
+            let currentDate = new Date(semesterConfig.startDate);
+            currentDate.setHours(12, 0, 0, 0);
+            
+            const endDate = new Date(semesterConfig.endDate);
+            endDate.setHours(12, 0, 0, 0);
+
+            const maxWeeks = parseInt(semesterConfig.weeksCount) || 52;
+
+            let weekNumber = 1;
+            let currentWeek = [];
+
+            // Loop until end date OR max weeks reached
+            while (currentDate <= endDate && weekNumber <= maxWeeks) {
+              const dateStr = formatDate(currentDate);
+              const dayName = getDayName(currentDate);
+              const isWeekend = dayName === 'Saturday' || dayName === 'Sunday';
+              const isPublicHoliday = isHoliday(dateStr);
+
+              if (!isWeekend && !isPublicHoliday) {
+                currentWeek.push({
+                  date: dateStr,
+                  day: dayName,
+                  displayDate: currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+                  fullDate: new Date(currentDate) 
+                });
+              }
+
+              if (dayName === 'Friday' || currentDate.getTime() === endDate.getTime()) {
+                if (currentWeek.length > 0) {
+                  calendar.push({ id: weekNumber, days: currentWeek });
+                  weekNumber++;
+                  currentWeek = [];
+                }
+              }
+
+              currentDate.setDate(currentDate.getDate() + 1);
+            }
+            return calendar;
+          }, [semesterConfig]);
+
+          // --- Logic ---
+          const handleMarking = (dateStr, moduleId, type) => {
+            setHistory(prev => [...prev, attendance]);
+            setFuture([]); 
+
+            const key = `${dateStr}_${moduleId}`;
+            
+            setAttendance(prev => {
+              const newAtt = { ...prev };
+              if (type === 'present') {
+                delete newAtt[key];
+              } else {
+                newAtt[key] = type;
+              }
+              return newAtt;
+            });
+          };
+
+          const undo = () => {
+            if (history.length === 0) return;
+            const previousState = history[history.length - 1];
+            const newHistory = history.slice(0, -1);
+            setFuture(prev => [attendance, ...prev]);
+            setAttendance(previousState);
+            setHistory(newHistory);
+          };
+
+          const redo = () => {
+            if (future.length === 0) return;
+            const nextState = future[0];
+            const newFuture = future.slice(1);
+            setHistory(prev => [...prev, attendance]);
+            setAttendance(nextState);
+            setFuture(newFuture);
+          };
+
+          const getStats = () => {
+            let stats = modules.map(m => ({ ...m, total: 0, present: 0, absent: 0, cancelled: 0 }));
+            let totalClasses = 0;
+            let totalPresent = 0;
+            
+            academicCalendar.forEach(week => {
+              week.days.forEach(day => {
+                const daysModulesIDs = schedule[day.day] || [];
+                daysModulesIDs.forEach(modId => {
+                  const key = `${day.date}_${modId}`;
+                  const explicitStatus = attendance[key];
+                  const status = explicitStatus || 'present'; 
+
+                  const modStatIndex = stats.findIndex(m => m.id === modId);
+                  
+                  if (modStatIndex > -1) {
+                    if (status !== 'cancelled') {
+                      stats[modStatIndex].total++;
+                      totalClasses++;
+                    }
+
+                    if (status === 'present') {
+                      stats[modStatIndex].present++;
+                      totalPresent++;
+                    } else if (status === 'absent') {
+                      stats[modStatIndex].absent++;
+                    } else if (status === 'cancelled') {
+                      stats[modStatIndex].cancelled++;
+                    }
+                  }
+                });
+              });
+            });
+
+            const finalStats = stats.map(s => {
+                const percentage = s.total === 0 ? 100 : Math.round((s.present / s.total) * 100);
+                const requiredPresent = Math.ceil(s.total * 0.8);
+                const maxAbsencesAllowed = s.total - requiredPresent;
+                const buffer = maxAbsencesAllowed - s.absent;
+                
+                return {
+                    ...s,
+                    percentage,
+                    buffer,
+                    eligible: percentage >= 80,
+                    requiredPresent
+                };
+            });
+
+            return { 
+                moduleStats: finalStats, 
+                overall: totalClasses === 0 ? 100 : Math.round((totalPresent / totalClasses) * 100) 
+            };
+          };
+
+          const { moduleStats, overall } = getStats();
+          const atRiskModules = moduleStats.filter(m => !m.eligible && m.total > 0);
+
+          const toggleSchedule = (day, modId) => {
+            setSchedule(prev => {
+              const currentDaySchedule = prev[day] || [];
+              if (currentDaySchedule.includes(modId)) {
+                return { ...prev, [day]: currentDaySchedule.filter(id => id !== modId) };
+              } else {
+                return { ...prev, [day]: [...currentDaySchedule, modId].sort() };
+              }
+            });
+          };
+
+          // --- Render Components ---
+
+          const SettingsView = () => (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {/* Undo/Redo Header */}
+              <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+                    <h2 className="font-semibold text-slate-700">Configuration</h2>
+                    <div className="flex gap-2">
+                        <button 
+                          onClick={undo} 
+                          disabled={history.length === 0}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            history.length === 0 
+                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:text-indigo-600'
+                          }`}
+                        >
+                            <Undo size={16} /> Undo
+                        </button>
+                        <button 
+                          onClick={redo} 
+                          disabled={future.length === 0}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            future.length === 0 
+                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:text-indigo-600'
+                          }`}
+                        >
+                            Redo <Redo size={16} />
+                        </button>
+                    </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <Sliders size={20} className="text-indigo-600"/> 1. Semester Configuration
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Start Date</label>
+                        <input 
+                            type="date"
+                            value={semesterConfig.startDate}
+                            onChange={(e) => setSemesterConfig({...semesterConfig, startDate: e.target.value})}
+                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">End Date</label>
+                        <input 
+                            type="date"
+                            value={semesterConfig.endDate}
+                            onChange={(e) => setSemesterConfig({...semesterConfig, endDate: e.target.value})}
+                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Weeks to Consider</label>
+                        <input 
+                            type="number"
+                            min="1"
+                            max="52"
+                            value={semesterConfig.weeksCount}
+                            onChange={(e) => setSemesterConfig({...semesterConfig, weeksCount: e.target.value})}
+                            className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        />
+                    </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex justify-between items-center mb-4">
+                   <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                     <BookOpen size={20} className="text-indigo-600"/> 2. Define Modules
+                   </h3>
+                   <button onClick={() => {
+                      if(confirm("Resetting will revert all data including attendance records. Continue?")) {
+                         localStorage.removeItem('uniAttendanceData_v3'); 
+                         localStorage.removeItem('uniAttendanceData_v2'); 
+                         window.location.reload();
+                      }
+                   }} className="text-xs text-red-500 flex items-center gap-1 hover:underline">
+                     <RefreshCw size={12}/> Full Reset
+                   </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {modules.map((mod, idx) => (
+                    <div key={mod.id} className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${mod.color}`}></div>
+                      <input 
+                        type="text" 
+                        value={mod.name}
+                        onChange={(e) => {
+                          const newModules = [...modules];
+                          newModules[idx].name = e.target.value;
+                          setModules(newModules);
+                        }}
+                        className="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                        placeholder={`Module ${mod.id}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <Calendar size={20} className="text-indigo-600"/> 3. Set Timetable
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">Click to assign modules to days.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="p-3 text-left font-medium text-slate-600">Module</th>
+                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(d => (
+                          <th key={d} className="p-3 text-center font-medium text-slate-600">{d.slice(0,3)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modules.map(mod => (
+                        <tr key={mod.id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="p-3 font-medium text-slate-700 flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${mod.color}`}></span>
+                            {mod.name}
+                          </td>
+                          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => (
+                            <td key={day} className="p-3 text-center">
+                              <button 
+                                onClick={() => toggleSchedule(day, mod.id)}
+                                className={`w-6 h-6 rounded border transition-all ${
+                                  schedule[day].includes(mod.id) 
+                                    ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                    : 'bg-white border-slate-300 hover:border-indigo-400'
+                                }`}
+                              >
+                                {schedule[day].includes(mod.id) && <CheckCircle size={14} className="mx-auto" />}
+                              </button>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+
+          const StatsView = () => (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {moduleStats.map(stat => {
+                  const percentage = stat.percentage;
+                  const isEligible = stat.eligible;
+                  
+                  return (
+                    <div key={stat.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
+                      <div className={`absolute top-0 left-0 w-1 h-full ${stat.color}`}></div>
+                      <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="font-bold text-slate-700 truncate w-40">{stat.name}</h4>
+                            <p className="text-xs text-slate-500 mt-1">Total Classes: {stat.total}</p>
+                          </div>
+                          <div className={`text-2xl font-bold ${isEligible ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {percentage}%
+                          </div>
+                      </div>
+                      
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 mb-4">
+                          <div className={`h-2.5 rounded-full transition-all duration-1000 ${isEligible ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${percentage}%` }}></div>
+                      </div>
+
+                      <div className={`mb-3 p-2 rounded-lg text-xs font-semibold flex items-center gap-2 ${isEligible ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                          {isEligible ? <ShieldCheck size={14}/> : <ShieldAlert size={14}/>}
+                          {isEligible ? 'Exam Eligible' : 'Not Eligible'}
+                      </div>
+
+                      {isEligible ? (
+                          <div className="text-xs text-slate-600 mb-3">
+                              You can miss <strong>{stat.buffer}</strong> more class(es) and stay eligible.
+                          </div>
+                      ) : (
+                          <div className="text-xs text-red-600 mb-3 font-medium">
+                              Critical Shortage! You are {Math.abs(stat.buffer)} classes short of 80%.
+                          </div>
+                      )}
+
+                      <div className="flex justify-between text-xs text-slate-400 border-t pt-2 border-slate-100">
+                          <span className="flex items-center gap-1"><CheckCircle size={12}/> {stat.present} Present</span>
+                          <span className="flex items-center gap-1"><XCircle size={12}/> {stat.absent} Absent</span>
+                          <span className="flex items-center gap-1"><AlertCircle size={12}/> {stat.cancelled} Off</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                     <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                        <Calendar size={20} className="text-indigo-600"/> Excluded Government Holidays
+                     </h3>
+                     <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full border border-indigo-100">
+                        {activeHolidays.length} active in selected range
+                     </span>
+                </div>
+                {activeHolidays.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {activeHolidays.map((h, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <span className="font-medium text-slate-700">{h.name}</span>
+                            <span className="text-sm text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
+                            {new Date(h.date).toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                        </div>
+                    ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-400 italic">No holidays fall within the selected date range.</p>
+                )}
+              </div>
+            </div>
+          );
+
+          const TrackerView = () => {
+            return (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+                    <h2 className="font-semibold text-slate-700">Attendance Log</h2>
+                    <div className="flex gap-2">
+                        <button 
+                          onClick={undo} 
+                          disabled={history.length === 0}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            history.length === 0 
+                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:text-indigo-600'
+                          }`}
+                        >
+                            <Undo size={16} /> Undo
+                        </button>
+                        <button 
+                          onClick={redo} 
+                          disabled={future.length === 0}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            future.length === 0 
+                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                            : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:text-indigo-600'
+                          }`}
+                        >
+                            Redo <Redo size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {academicCalendar.map((week) => (
+                  <div key={week.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+                      <h3 className="font-bold text-slate-700">Week {week.id}</h3>
+                      <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                        {week.days[0].displayDate} - {week.days[week.days.length - 1].displayDate}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {week.days.map(day => {
+                        const dayModules = schedule[day.day] || [];
+                        if (dayModules.length === 0) return null; 
+
+                        return (
+                          <div key={day.date} className="p-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-slate-50 transition-colors">
+                            <div className="md:w-32 flex-shrink-0">
+                              <div className="font-medium text-slate-800">{day.day}</div>
+                              <div className="text-sm text-slate-500">{day.displayDate}</div>
+                            </div>
+                            
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {dayModules.map(modId => {
+                                const mod = modules.find(m => m.id === modId);
+                                const stat = moduleStats.find(s => s.id === modId); 
+                                const percentage = stat ? stat.percentage : 100;
+                                const buffer = stat ? stat.buffer : 0;
+                                const key = `${day.date}_${modId}`;
+                                const explicitStatus = attendance[key];
+                                const status = explicitStatus || 'present';
+
+                                return (
+                                  <div key={modId} className={`flex items-center justify-between border rounded-lg p-2 pl-3 shadow-sm transition-all ${status === 'present' ? 'bg-white border-slate-200' : status === 'absent' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+                                    <div className="flex flex-col overflow-hidden mr-2">
+                                      <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${mod.color}`}></div>
+                                        <span className={`text-sm font-medium truncate ${status === 'present' ? 'text-slate-700' : status === 'absent' ? 'text-red-700' : 'text-amber-700'}`}>{mod.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2 ml-4">
+                                          <span className={`text-xs font-medium ${percentage < 80 ? 'text-red-500' : 'text-slate-400'}`}>
+                                            {percentage}%
+                                          </span>
+                                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${buffer > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                             {buffer > 0 ? `${buffer} skips left` : 'No skips left'}
+                                          </span>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-1">
+                                      <button 
+                                        onClick={() => handleMarking(day.date, modId, 'present')}
+                                        title="Mark Present (Default)"
+                                        className={`p-1.5 rounded-md transition-all ${status === 'present' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-300 hover:bg-slate-100'}`}
+                                      >
+                                        <CheckCircle size={16} />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleMarking(day.date, modId, 'absent')}
+                                        title="Mark Absent"
+                                        className={`p-1.5 rounded-md transition-all ${status === 'absent' ? 'bg-red-500 text-white shadow-md' : 'text-slate-300 hover:bg-slate-100'}`}
+                                      >
+                                        <XCircle size={16} />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleMarking(day.date, modId, 'cancelled')}
+                                        title="Class Cancelled"
+                                        className={`p-1.5 rounded-md transition-all ${status === 'cancelled' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-300 hover:bg-slate-100'}`}
+                                      >
+                                        <AlertCircle size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          };
+
+          return (
+            <div className="min-h-screen bg-slate-100 text-slate-800 font-sans pb-20">
+              {/* Header */}
+              <div className="bg-indigo-900 text-white pt-8 pb-16 px-4 shadow-xl relative">
+                <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Attendance Tracker</h1>
+                    <p className="text-indigo-200 mt-1">Semester 3 (Dec 2025 - Mar 2026)</p>
+                    {atRiskModules.length > 0 && (
+                        <div className="mt-3 flex items-start gap-2 text-amber-300 bg-amber-900/30 p-2 rounded-lg border border-amber-500/30">
+                            <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+                            <div className="text-xs">
+                                <span className="font-bold">Exam Warning:</span> {atRiskModules.length} module(s) below 80%
+                            </div>
+                        </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col gap-3 items-end">
+                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border border-white/20">
+                        <div className="text-right">
+                            <div className="text-xs text-indigo-200 uppercase tracking-wider font-semibold">Overall Attendance</div>
+                            <div className={`text-3xl font-bold ${overall < 80 ? 'text-red-300' : 'text-emerald-300'}`}>{overall}%</div>
+                        </div>
+                        <PieChart size={40} className="text-indigo-200 opacity-80"/>
+                    </div>
+                    
+                    {/* User Auth Info */}
+                    <div className="flex items-center gap-3">
+                         {user && !user.isAnonymous ? (
+                            <div className="flex items-center gap-2 bg-indigo-800/50 p-1 pr-3 rounded-full border border-indigo-400/30">
+                                 {user.photoURL ? (
+                                     <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-full border border-white/50" />
+                                 ) : (
+                                     <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white"><User size={16}/></div>
+                                 )}
+                                 <div className="flex flex-col">
+                                     <span className="text-[10px] text-indigo-200 leading-none">Signed in as</span>
+                                     <span className="text-xs font-medium text-white max-w-[100px] truncate">{user.displayName || 'User'}</span>
+                                 </div>
+                                 <button onClick={handleLogout} className="ml-2 text-indigo-200 hover:text-white p-1 hover:bg-white/10 rounded-full transition" title="Sign Out">
+                                    <LogOut size={14}/>
+                                 </button>
+                            </div>
+                         ) : (
+                            <button 
+                                onClick={handleGoogleLogin} 
+                                className="flex items-center gap-2 bg-white text-indigo-900 px-4 py-2 rounded-full text-xs font-bold shadow-md hover:bg-indigo-50 transition"
+                            >
+                                <LogIn size={14}/> Sign In
+                            </button>
+                         )}
+                         <div className="text-indigo-300" title={user && !user.isAnonymous ? "Cloud Sync Active" : "Local Storage Only"}>
+                            {user && !user.isAnonymous ? <Cloud size={18}/> : <CloudOff size={18}/>}
+                         </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content Container */}
+              <div className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
+                
+                {/* Navigation Tabs */}
+                <div className="flex bg-white rounded-lg p-1 shadow-md mb-6 border border-slate-200">
+                  <button 
+                    onClick={() => setActiveTab('tracker')}
+                    className={`flex-1 py-3 text-sm font-semibold rounded-md flex items-center justify-center gap-2 transition-all ${activeTab === 'tracker' ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    <Calendar size={18} /> Tracker
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('stats')}
+                    className={`flex-1 py-3 text-sm font-semibold rounded-md flex items-center justify-center gap-2 transition-all ${activeTab === 'stats' ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    <PieChart size={18} /> Stats
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('settings')}
+                    className={`flex-1 py-3 text-sm font-semibold rounded-md flex items-center justify-center gap-2 transition-all ${activeTab === 'settings' ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    <Settings size={18} /> Settings
+                  </button>
+                </div>
+
+                {/* Views */}
+                {activeTab === 'settings' && <SettingsView />}
+                {activeTab === 'stats' && <StatsView />}
+                {activeTab === 'tracker' && <TrackerView />}
+              </div>
+
+              {/* Footer info */}
+              <div className="text-center text-slate-400 text-xs mt-12 pb-8">
+                <p>Holidays Excluded: Christmas, Thai Pongal, Independence Day, Madin Poya.</p>
+                <p>Target: <strong>80% per subject</strong> for Exam Eligibility.</p>
+              </div>
+            </div>
+          );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<AttendanceTracker />);
+    </script>
+</body>
+</html>
